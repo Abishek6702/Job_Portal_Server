@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const Application = require("../models/JobApplication");
 const User = require("../models/User");
 const Job = require("../models/job");
-const Onboarding = require("../models/Onboarding");
+const Onboarding = require("../models/onboarding");
 const sendStatusEmail = require("../utils/sendStatusMail");
 const path = require("path");
 
