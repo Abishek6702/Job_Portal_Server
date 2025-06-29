@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Notification = require("../models/Notification");
 const User = require("../models/User");
-const Onboarding = require("../models/Onboarding");
+const Onboarding = require("../models/onboarding");
 
 // Get all notifications for a user
 router.get("/", async (req, res) => {
