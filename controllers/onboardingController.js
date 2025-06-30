@@ -3,7 +3,11 @@ const User = require("../models/User");
 
 exports.saveOrUpdateOnboarding = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user?._id;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized: User ID missing" });
+    }
+
     let data = req.body;
 
     // Parse JSON fields if sent as strings
@@ -14,13 +18,15 @@ exports.saveOrUpdateOnboarding = async (req, res) => {
     if (typeof data.preferredRoles === "string")
       data.preferredRoles = JSON.parse(data.preferredRoles);
     if (typeof data.skills === "string") {
-  try {
-    data.skills = JSON.parse(data.skills);
-  } catch {
-    // fallback: comma split
-    data.skills = data.skills.split(",").map(s => s.trim()).filter(Boolean);
-  }
-}
+      try {
+        data.skills = JSON.parse(data.skills);
+      } catch {
+        data.skills = data.skills
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+      }
+    }
 
     // Attach file paths if files are present
     if (req.files) {
@@ -29,14 +35,14 @@ exports.saveOrUpdateOnboarding = async (req, res) => {
       if (req.files.resume) data.resume = req.files.resume[0].path;
     }
 
-    let onboarding = await Onboarding.findOne({ userId });
-    if (!onboarding) {
-      onboarding = await Onboarding.create({ userId, ...data });
-    } else {
-      await Onboarding.updateOne({ userId }, { $set: data });
-    }
+    // Ensure userId is included in update filter and data
+    await Onboarding.updateOne(
+      { userId: userId },
+      { $set: { ...data, userId: userId } },
+      { upsert: true }
+    );
 
-    // Update user state: onboardingCompleted true, firstTimeLogin false
+    // Update user state
     await User.findByIdAndUpdate(userId, {
       onboardingCompleted: true,
       firstTimeLogin: false,
@@ -44,6 +50,7 @@ exports.saveOrUpdateOnboarding = async (req, res) => {
 
     res.status(200).json({ message: "Onboarding data saved" });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -62,7 +69,7 @@ exports.getOnboarding = async (req, res) => {
 
 exports.updateProfileImage = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
 
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
@@ -89,7 +96,7 @@ exports.updateProfileImage = async (req, res) => {
 
 exports.updateResume = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
 
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
@@ -116,7 +123,7 @@ exports.updateResume = async (req, res) => {
 
 exports.upsertBannerImage = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
 
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
