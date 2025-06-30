@@ -17,22 +17,25 @@ const onboardingRoutes = require("./routes/onboardingRoutes");
 const applicationRoutes = require("./routes/jobApplicationRoutes");
 const connectionRoutes = require("./routes/connectionRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
-const messageRoutes = require('./routes/messageRoutes');
-const postRoutes =  require("./routes/postRoutes");
+const messageRoutes = require("./routes/messageRoutes");
+const postRoutes = require("./routes/postRoutes");
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
     origin: process.env.CLIENT_URL, // Your frontend URL
     methods: ["GET", "POST"],
-    credentials: true
-  }
+    credentials: true,
+  },
 });
 
-app.use(cors({
-  origin: "http://localhost:5173",
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: [process.env.CLIENT_URL, "http://localhost:5173"],
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 
 connectDB();
@@ -41,12 +44,12 @@ connectDB();
 // In server.js, update socket connection
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
-  
+
   // Automatically join user room using token
   const token = socket.handshake.auth.token;
   if (token) {
     try {
-      const jwt = require('jsonwebtoken');
+      const jwt = require("jsonwebtoken");
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const userId = decoded.id || decoded._id;
       if (userId) {
@@ -77,9 +80,6 @@ io.on("connection", (socket) => {
   });
 });
 
-
-
-
 // Make io accessible in routes
 app.use((req, res, next) => {
   req.io = io;
@@ -95,8 +95,8 @@ app.use("/api/onboarding", onboardingRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/connections", connectionRoutes);
 app.use("/api/notifications", notificationRoutes);
-app.use('/api/messages', messageRoutes);
-app.use("/api/posts",postRoutes);
+app.use("/api/messages", messageRoutes);
+app.use("/api/posts", postRoutes);
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
