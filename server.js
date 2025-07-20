@@ -26,18 +26,31 @@ const server = http.createServer(app);
 // Frontend ports allowed
 const io = socketIo(server, {
   cors: {
-    origin: process.env.CLIENT_URL, 
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true
   }
 });
 
+
 // Frontend ports allowed
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://job-portal-client-eosin-chi.vercel.app",
+  "https://job-portal-client-git-main-abisheks-projects-b2a0a1da.vercel.app"
+];
+
 app.use(cors({
-  origin: "http://localhost:5173",
-  credentials: true
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS: " + origin));
+    }
+  },
+  credentials: true,
 }));
-app.use(express.json());
+
 
 connectDB();
 
