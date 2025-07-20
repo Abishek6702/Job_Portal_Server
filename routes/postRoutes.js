@@ -4,7 +4,7 @@ const mongoose = require("mongoose");
 const router = express.Router();
 const Post = require("../models/Post");
 const User = require("../models/User");
-const Onboarding = require("../models/onboarding");
+const Onboarding = require("../models/Onboarding");
 
 const { verifyToken } = require("../middlewares/authMiddleware");
 const upload = require("../middlewares/upload");
@@ -36,12 +36,13 @@ router.post("/", verifyToken, upload.single("image"), async (req, res) => {
     console.error("Post creation error:", error);
     res.status(500).json({
       error: "Internal Server Error",
-      details: process.env.NODE_ENV === "development" ? error.message : "Server error",
+      details:
+        process.env.NODE_ENV === "development" ? error.message : "Server error",
     });
   }
 });
 
-// Get user's feed
+// Get particular user's feed
 router.get("/feed", verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
@@ -51,11 +52,11 @@ router.get("/feed", verifyToken, async (req, res) => {
       return res.status(400).json({ error: "Invalid connections data" });
     }
 
-    // Convert all connection ids to ObjectId
-    const connections = user.connections.map((id) => new mongoose.Types.ObjectId(id));
+    const connections = user.connections.map(
+      (id) => new mongoose.Types.ObjectId(id)
+    );
     connections.push(new mongoose.Types.ObjectId(req.user._id));
 
-    // Fetch posts
     const posts = await Post.find({
       $or: [
         { visibility: "everyone" },
@@ -66,9 +67,10 @@ router.get("/feed", verifyToken, async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    // Attach author onboarding
     const authorIds = posts.map((p) => p.author._id);
-   const authorOnboardings = await Onboarding.find({ userId: { $in: authorIds } }).lean();
+    const authorOnboardings = await Onboarding.find({
+      userId: { $in: authorIds },
+    }).lean();
 
     const onboardingMap = {};
     authorOnboardings.forEach((o) => {
@@ -76,26 +78,32 @@ router.get("/feed", verifyToken, async (req, res) => {
     });
 
     posts.forEach((post) => {
-      post.author.onboarding = onboardingMap[post.author._id.toString()] || null;
+      post.author.onboarding =
+        onboardingMap[post.author._id.toString()] || null;
     });
 
-    // Gather all unique comment user IDs
     const commentUserIds = [
-      ...new Set(posts.flatMap((post) => post.comments.map((c) => c.user.toString())))
+      ...new Set(
+        posts.flatMap((post) => post.comments.map((c) => c.user.toString()))
+      ),
     ];
-    const commentUserDocs = await User.find({ _id: { $in: commentUserIds } }, "name").lean();
+    const commentUserDocs = await User.find(
+      { _id: { $in: commentUserIds } },
+      "name"
+    ).lean();
     const commentUserMap = {};
     commentUserDocs.forEach((u) => {
       commentUserMap[u._id.toString()] = u;
     });
 
-    const commentOnboardings = await Onboarding.find({ userId: { $in: commentUserIds } }).lean();
+    const commentOnboardings = await Onboarding.find({
+      userId: { $in: commentUserIds },
+    }).lean();
     const commentOnboardingMap = {};
     commentOnboardings.forEach((o) => {
       commentOnboardingMap[o.userId.toString()] = o;
     });
 
-    // Attach user name and onboarding to each comment
     posts.forEach((post) => {
       post.comments = post.comments.map((comment) => ({
         ...comment,
@@ -121,7 +129,9 @@ router.put("/:id/like", verifyToken, async (req, res) => {
     if (!post) return res.status(404).json({ error: "Post not found" });
 
     const userId = req.user._id?.toString();
-    const likeIndex = post.likes.findIndex(like => like && like.toString() === userId);
+    const likeIndex = post.likes.findIndex(
+      (like) => like && like.toString() === userId
+    );
 
     if (likeIndex !== -1) {
       post.likes.splice(likeIndex, 1);
@@ -152,7 +162,6 @@ router.post("/:id/comment", verifyToken, async (req, res) => {
     post.comments.push(newComment);
     await post.save();
 
-    // Return updated comments array
     res.json(post.comments);
   } catch (err) {
     console.error(err.message);
@@ -160,8 +169,7 @@ router.post("/:id/comment", verifyToken, async (req, res) => {
   }
 });
 
-
-// GET /api/posts/my-posts
+// Get particular users post by ID
 router.post("/my-posts", async (req, res) => {
   try {
     const userId = req.body.userId;
@@ -170,43 +178,47 @@ router.post("/my-posts", async (req, res) => {
       return res.status(400).json({ error: "User ID is required" });
     }
 
-    // 1. Fetch posts authored by the given user
     const posts = await Post.find({ author: userId })
       .populate("author", "name")
       .sort({ createdAt: -1 })
       .lean();
 
-    // 2. Attach author onboarding
     const authorIds = posts.map((p) => p.author._id);
-    const authorOnboardings = await Onboarding.find({ userId: { $in: authorIds } }).lean();
+    const authorOnboardings = await Onboarding.find({
+      userId: { $in: authorIds },
+    }).lean();
     const onboardingMap = {};
     authorOnboardings.forEach((o) => {
       onboardingMap[o.userId.toString()] = o;
     });
 
     posts.forEach((post) => {
-      post.author.onboarding = onboardingMap[post.author._id.toString()] || null;
+      post.author.onboarding =
+        onboardingMap[post.author._id.toString()] || null;
     });
 
-    // 3. Gather all unique comment user IDs
     const commentUserIds = [
       ...new Set(
         posts.flatMap((post) => post.comments.map((c) => c.user.toString()))
       ),
     ];
-    const commentUserDocs = await User.find({ _id: { $in: commentUserIds } }, "name").lean();
+    const commentUserDocs = await User.find(
+      { _id: { $in: commentUserIds } },
+      "name"
+    ).lean();
     const commentUserMap = {};
     commentUserDocs.forEach((u) => {
       commentUserMap[u._id.toString()] = u;
     });
 
-    const commentOnboardings = await Onboarding.find({ userId: { $in: commentUserIds } }).lean();
+    const commentOnboardings = await Onboarding.find({
+      userId: { $in: commentUserIds },
+    }).lean();
     const commentOnboardingMap = {};
     commentOnboardings.forEach((o) => {
       commentOnboardingMap[o.userId.toString()] = o;
     });
 
-    // 4. Attach user name and onboarding to each comment
     posts.forEach((post) => {
       post.comments = post.comments.map((comment) => ({
         ...comment,
@@ -225,7 +237,7 @@ router.post("/my-posts", async (req, res) => {
   }
 });
 
-// DELETE /api/posts/:id
+// Delete a post only by the user created
 router.delete("/:id", verifyToken, async (req, res) => {
   try {
     const postId = req.params.id;
@@ -237,9 +249,10 @@ router.delete("/:id", verifyToken, async (req, res) => {
       return res.status(404).json({ error: "Post not found" });
     }
 
-    // Ensure only the author can delete the post
     if (post.author.toString() !== userId.toString()) {
-      return res.status(403).json({ error: "Unauthorized to delete this post" });
+      return res
+        .status(403)
+        .json({ error: "Unauthorized to delete this post" });
     }
 
     await Post.findByIdAndDelete(postId);
@@ -250,8 +263,5 @@ router.delete("/:id", verifyToken, async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-
-
-
 
 module.exports = router;

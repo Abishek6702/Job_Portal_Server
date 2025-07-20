@@ -17,39 +17,39 @@ const onboardingRoutes = require("./routes/onboardingRoutes");
 const applicationRoutes = require("./routes/jobApplicationRoutes");
 const connectionRoutes = require("./routes/connectionRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
-const messageRoutes = require("./routes/messageRoutes");
-const postRoutes = require("./routes/postRoutes");
+const messageRoutes = require('./routes/messageRoutes');
+const postRoutes =  require("./routes/postRoutes");
+const resumeRoutes = require("./routes/resumeRoutes");
+const templateRoutes = require("./routes/templateRoutes");
 const app = express();
 const server = http.createServer(app);
+// Frontend ports allowed
 const io = socketIo(server, {
   cors: {
-    origin: process.env.CLIENT_URL, // Your frontend URL
+    origin: process.env.CLIENT_URL, 
     methods: ["GET", "POST"],
-    credentials: true,
-  },
+    credentials: true
+  }
 });
 
-app.use(
-  cors({
-    origin: [process.env.CLIENT_URL, "http://localhost:5173"],
-    credentials: true,
-  })
-);
-
+// Frontend ports allowed
+app.use(cors({
+  origin: "http://localhost:5173",
+  credentials: true
+}));
 app.use(express.json());
 
 connectDB();
 
 // Socket.IO connection
-// In server.js, update socket connection
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
-
+  
   // Automatically join user room using token
   const token = socket.handshake.auth.token;
   if (token) {
     try {
-      const jwt = require("jsonwebtoken");
+      const jwt = require('jsonwebtoken');
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const userId = decoded.id || decoded._id;
       if (userId) {
@@ -70,7 +70,6 @@ io.on("connection", (socket) => {
     console.log("Client disconnected:", socket.id);
   });
 
-  // Typing indicators
   socket.on("typing", ({ recipientId, senderId }) => {
     socket.to(recipientId).emit("typing", { senderId });
   });
@@ -80,13 +79,16 @@ io.on("connection", (socket) => {
   });
 });
 
+
+
+
 // Make io accessible in routes
 app.use((req, res, next) => {
   req.io = io;
   next();
 });
 
-// Your other routes
+// Application routes
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/companies", companyRoutes);
@@ -95,8 +97,11 @@ app.use("/api/onboarding", onboardingRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/connections", connectionRoutes);
 app.use("/api/notifications", notificationRoutes);
-app.use("/api/messages", messageRoutes);
-app.use("/api/posts", postRoutes);
+app.use('/api/messages', messageRoutes);
+app.use("/api/posts",postRoutes);
+app.use("/api/resumes",resumeRoutes);
+app.use("/api/templates",templateRoutes)
+
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
@@ -143,7 +148,6 @@ cron.schedule("*/1 * * * *", async () => {
   }
 });
 
-// Start the server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`Server running with Socket.IO on port ${PORT}`);

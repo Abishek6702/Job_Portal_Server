@@ -1,6 +1,7 @@
 const Onboarding = require("../models/onboarding");
 const User = require("../models/User");
 
+// To create onboarding  detils for employee user and update those by their ID
 exports.saveOrUpdateOnboarding = async (req, res) => {
   try {
     const userId = req.user?._id;
@@ -10,7 +11,6 @@ exports.saveOrUpdateOnboarding = async (req, res) => {
 
     let data = req.body;
 
-    // Parse JSON fields if sent as strings
     if (typeof data.education === "string")
       data.education = JSON.parse(data.education);
     if (typeof data.experience === "string")
@@ -28,21 +28,18 @@ exports.saveOrUpdateOnboarding = async (req, res) => {
       }
     }
 
-    // Attach file paths if files are present
     if (req.files) {
       if (req.files.profileImage)
         data.profileImage = req.files.profileImage[0].path;
       if (req.files.resume) data.resume = req.files.resume[0].path;
     }
 
-    // Ensure userId is included in update filter and data
     await Onboarding.updateOne(
       { userId: userId },
       { $set: { ...data, userId: userId } },
       { upsert: true }
     );
 
-    // Update user state
     await User.findByIdAndUpdate(userId, {
       onboardingCompleted: true,
       firstTimeLogin: false,
@@ -55,6 +52,7 @@ exports.saveOrUpdateOnboarding = async (req, res) => {
   }
 };
 
+// Fetch onboarding details bu UserID
 exports.getOnboarding = async (req, res) => {
   try {
     const userId = req.params.userId;
@@ -67,6 +65,7 @@ exports.getOnboarding = async (req, res) => {
   }
 };
 
+// Update the profile imgae of the user in the onbording by user ID
 exports.updateProfileImage = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -94,6 +93,7 @@ exports.updateProfileImage = async (req, res) => {
   }
 };
 
+// Update resume of the user in the onbording by user ID
 exports.updateResume = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -121,6 +121,7 @@ exports.updateResume = async (req, res) => {
   }
 };
 
+// Update banner image of the user in the onbording by user ID
 exports.upsertBannerImage = async (req, res) => {
   try {
     const userId = req.user._id;

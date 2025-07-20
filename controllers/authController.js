@@ -6,16 +6,20 @@ const bcrypt = require("bcrypt");
 const Onboarding = require("../models/onboarding");
 const Message = require("../models/Message");
 
+// Utility to generate a 6-digit OTP
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000);
 
+// Register new employee
 exports.registerEmployee = async (req, res) => {
   await registerUser(req, res, "employee");
 };
 
+// Register new employer or company profile
 exports.registerEmployer = async (req, res) => {
   await registerUser(req, res, "employer");
 };
 
+// Register admin user only allowed if email matches admin config
 exports.registerAdmin = async (req, res) => {
   if (req.body.email !== process.env.ADMIN_EMAIL) {
     return res
@@ -25,6 +29,7 @@ exports.registerAdmin = async (req, res) => {
   await registerUser(req, res, "admin");
 };
 
+// Generic user registration function used by all roles
 const registerUser = async (req, res, role) => {
   const { name, email, phone, password } = req.body;
 
@@ -53,6 +58,7 @@ const registerUser = async (req, res, role) => {
   }
 };
 
+// Verify otp during the process of user registeration 
 exports.verifyOtp = async (req, res) => {
   const { email, otp } = req.body;
 
@@ -84,6 +90,7 @@ exports.verifyOtp = async (req, res) => {
   }
 };
 
+// Otp Verified users are only allowed to login
 exports.login = async (req, res) => {
   const { email, password } = req.body;
 
@@ -92,7 +99,9 @@ exports.login = async (req, res) => {
     const user = await User.findOne({ email });
 
     if (!user || !user.isVerified) {
-      return res.status(400).json({ message: "User not verified or does not exist" });
+      return res
+        .status(400)
+        .json({ message: "User not verified or does not exist" });
     }
 
     // Check if the password matches
@@ -100,7 +109,7 @@ exports.login = async (req, res) => {
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
-    // console.log("Applied Jobs:", user.appliedJobs); 
+    // console.log("Applied Jobs:", user.appliedJobs);
     // Create the JWT token and include only the job IDs in appliedJobs
     const token = jwt.sign(
       {
@@ -110,11 +119,11 @@ exports.login = async (req, res) => {
         email: user.email,
         name: user.name,
         firstTimeLogin: user.firstTimeLogin,
-        appliedjobs: user.appliedJobs || [], 
-        connections: user.connections || [],// This contains only the job IDs (ObjectIds)
+        appliedjobs: user.appliedJobs || [],
+        connections: user.connections || [], // This contains only the job IDs (ObjectIds)
       },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "24h" }
     );
 
     // Send the response with the token
@@ -124,6 +133,7 @@ exports.login = async (req, res) => {
   }
 };
 
+// Forget passowrd otp send function 
 exports.sendResetOTP = async (req, res) => {
   const { email } = req.body;
 
@@ -146,6 +156,7 @@ exports.sendResetOTP = async (req, res) => {
   }
 };
 
+// Forget passowrd otp verification
 exports.verifyResetOTP = async (req, res) => {
   const { email, otp } = req.body;
 
@@ -161,6 +172,7 @@ exports.verifyResetOTP = async (req, res) => {
   }
 };
 
+// Change password after otp verified
 exports.resetPassword = async (req, res) => {
   const { email, newPassword } = req.body;
 
@@ -173,6 +185,7 @@ exports.resetPassword = async (req, res) => {
   }
 };
 
+// Logic to resend otp during signup verification
 exports.resendVerificationOTP = async (req, res) => {
   const { email } = req.body;
 
@@ -199,6 +212,7 @@ exports.resendVerificationOTP = async (req, res) => {
   }
 };
 
+// Register e-learning instructor
 exports.registerInstructor = async (req, res) => {
   const { name, email, phone, password } = req.body;
 
@@ -233,6 +247,7 @@ exports.registerInstructor = async (req, res) => {
   }
 };
 
+// Login e-learning instructor
 exports.loginInstructor = async (req, res) => {
   const { email, password } = req.body;
 
@@ -259,18 +274,21 @@ exports.loginInstructor = async (req, res) => {
   }
 };
 
+// Get User by their ID (Employee, Employer)
 exports.getUserById = async (req, res) => {
   try {
-    // Populate savedJobs while fetching user
-    const user = await User.findById(req.params.id).populate("savedJobs");
-     // populate saved jobs
+    const user = await User.findById(req.params.id).populate({
+      path: "savedJobs",
+      populate: {
+        path: "companyId", // <- This assumes Job has a field companyId
+        model: "Company", // <- Replace with your actual model name if different
+      },
+    });
 
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Fetch onboarding separately
     const onboarding = await Onboarding.findOne({ userId: user._id });
 
-    // Combine both
     const response = {
       ...user.toObject(),
       onboarding: onboarding || null,
@@ -283,38 +301,37 @@ exports.getUserById = async (req, res) => {
   }
 };
 
-
-// controllers/authController.js
-
-
+// Get all the user including all roles expect admin
 exports.getAllUsers = async (req, res) => {
   try {
     const currentUserId = req.user._id; // Get current user ID
-    
+
     // Fetch all users
-    const users = await User.find({ _id: { $ne: currentUserId } }).populate("savedJobs");
+    const users = await User.find({ _id: { $ne: currentUserId } }).populate(
+      "savedJobs"
+    );
 
     // For each user, get last message and onboarding data
     const usersWithData = await Promise.all(
       users.map(async (user) => {
         // 1. Get onboarding data
         const onboarding = await Onboarding.findOne({ userId: user._id });
-        
+
         // 2. Get last message between current user and this user
         const lastMessage = await Message.findOne({
           $or: [
             { sender: currentUserId, recipient: user._id },
-            { sender: user._id, recipient: currentUserId }
-          ]
+            { sender: user._id, recipient: currentUserId },
+          ],
         })
-        .sort({ createdAt: -1 }) // Get most recent first
-        .limit(1);
+          .sort({ createdAt: -1 }) // Get most recent first
+          .limit(1);
 
         return {
           ...user.toObject(),
           onboarding: onboarding || null,
           lastMessage: lastMessage?.content || null,
-          lastMessageTime: lastMessage?.createdAt || null
+          lastMessageTime: lastMessage?.createdAt || null,
         };
       })
     );
@@ -326,5 +343,77 @@ exports.getAllUsers = async (req, res) => {
   }
 };
 
+// User to change passowrd when they are logged in
+exports.sendChangePasswordOTP = async (req, res) => {
+  const { email } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: "User not found" });
 
+    const otp = generateOTP();
+    await OTP.deleteMany({ email });
+    await OTP.create({
+      email,
+      otp,
+      expiresAt: new Date(Date.now() + 10 * 60000), // 10 min
+    });
 
+    await sendEmail(email, "Change Password OTP", `Your OTP: ${otp}`);
+    res.json({ message: "OTP sent to your email" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// User to change passowrd OTP when they are logged in
+exports.verifyChangePasswordOTP = async (req, res) => {
+  const { email, otp } = req.body;
+  try {
+    const otpRecord = await OTP.findOne({ email, otp });
+    if (!otpRecord) return res.status(400).json({ message: "Invalid OTP" });
+    if (otpRecord.expiresAt < new Date())
+      return res.status(400).json({ message: "OTP expired" });
+
+    res.json({ message: "OTP verified. Please enter your current password." });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// User to change passowrd when they are logged in 
+exports.changePasswordWithCurrent = async (req, res) => {
+  const { email, newPassword } = req.body;
+  try {
+    // Find the user
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Change password
+    user.password = newPassword;
+    await user.save();
+
+    // Remove any OTP for this email (cleanup)
+    await OTP.deleteMany({ email });
+
+    res.json({ message: "Password changed successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// User to change passowrd when they are logged in to check existing passowrd
+exports.checkCurrentPassword = async (req, res) => {
+  const { email, oldPassword } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const isMatch = await user.comparePassword(oldPassword);
+    if (!isMatch)
+      return res.status(400).json({ message: "Incorrect password" });
+
+    res.json({ message: "Password correct" });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+};

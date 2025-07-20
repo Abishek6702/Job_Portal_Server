@@ -1,7 +1,7 @@
 const User = require('../models/User');
 const Job = require("../models/job");
 
-// Toggle Save/Unsave Job
+// Toggle save unsave job
 exports.toggleSaveJob = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -33,7 +33,7 @@ exports.toggleSaveJob = async (req, res) => {
   }
 };
 
-// ✅ Get All Saved Jobs
+// Get all saved jobs of 
 exports.getSavedJobs = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).populate('savedJobs');

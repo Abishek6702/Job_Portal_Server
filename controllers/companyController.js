@@ -3,6 +3,7 @@ const Company = require("../models/company");
 const Job = require("../models/job");
 const User = require("../models/User");
 
+// To create company profile only employer user can have access
 exports.createCompany = async (req, res) => {
   try {
     if (req.user.role !== "employer") {
@@ -40,7 +41,7 @@ exports.createCompany = async (req, res) => {
     });
     const user = await User.findById(req.user._id);
     if (user) {
-      user.firstTimeLogin = false; // Update to false after company post
+      user.firstTimeLogin = false;
       await user.save();
     }
 
@@ -52,6 +53,7 @@ exports.createCompany = async (req, res) => {
   }
 };
 
+// To fetch all companies 
 exports.getAllCompanies = async (req, res) => {
   try {
     const companies = await Company.find().populate("jobs");
@@ -61,6 +63,7 @@ exports.getAllCompanies = async (req, res) => {
   }
 };
 
+// Get company details by their ID
 exports.getCompanyById = async (req, res) => {
   try {
     const company = await Company.findById(req.params.id).populate("jobs");
@@ -72,6 +75,7 @@ exports.getCompanyById = async (req, res) => {
   }
 };
 
+// Delete Company profile but the login will be existing
 exports.deleteCompany = async (req, res) => {
   try {
     const company = await Company.findById(req.params.id);
@@ -79,27 +83,22 @@ exports.deleteCompany = async (req, res) => {
       return res.status(404).json({ message: "Company not found" });
     }
 
-    // console.log("User ID:", req.user._id, "CreatedBy:", company.createdBy);
 
     if (!company.createdBy.equals(req.user._id) && req.user.role !== "admin") {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    // Get jobs related to the company
     const jobs = await Job.find({ companyId: company._id });
     const jobIds = jobs.map((job) => job._id);
 
-    // Remove job references from users' savedJobs
     await User.updateMany(
       { savedJobs: { $in: jobIds } },
       { $pull: { savedJobs: { $in: jobIds } } }
     );
 
-    // Delete the jobs
     await Job.deleteMany({ companyId: company._id });
     await User.findByIdAndUpdate(company.createdBy, { firstTimeLogin: true });
 
-    // Delete the company
     await Company.findByIdAndDelete(req.params.id);
 
     res
@@ -114,6 +113,7 @@ exports.deleteCompany = async (req, res) => {
   }
 };
 
+// Update the company details with ID 
 exports.updateCompany = async (req, res) => {
   try {
     const { id } = req.params;

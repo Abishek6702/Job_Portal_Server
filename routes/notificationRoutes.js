@@ -1,10 +1,12 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 const Notification = require("../models/Notification");
 const User = require("../models/User");
-const Onboarding = require("../models/onboarding");
+const Onboarding = require("../models/Onboarding");
+const Job = require("../models/job");
+const Company = require("../models/Company");
 
-// Get all notifications for a user
+// To get all notifications
 router.get("/", async (req, res) => {
   try {
     const userId = req.query.userId;
@@ -12,23 +14,71 @@ router.get("/", async (req, res) => {
 
     const notifications = await Notification.find({ userId })
       .sort({ createdAt: -1 })
-      .populate("senderId", "name");
+      .populate({
+        path: "senderId",
+        model: "User",
+        select: "name",
+      });
 
-    // For each senderId, get onboarding profileImage
     const enrichedNotifications = await Promise.all(
       notifications.map(async (notif) => {
-        const onboarding = await Onboarding.findOne({
-          userId: notif.senderId._id,
-        }).select("profileImage");
+        if (notif.type === "application_status") {
+          let companyImage = null;
+          let companyName = null;
+          let companyId = null;
 
-        return {
-          ...notif._doc,
-          sender: {
-            _id: notif.senderId._id,
-            name: notif.senderId.name,
-            profileImage: onboarding?.profileImage || null,
-          },
-        };
+          const company = await Company.findOne({
+            createdBy: notif.senderId,
+          }).select("company_name company_logo");
+
+          if (company) {
+            companyImage = company.company_logo || null;
+            companyName = company.company_name;
+            companyId = company._id;
+
+            console.log(
+              `Notification: Rendering company logo for companyId=${companyId} name=${companyName} logo=${companyImage}`
+            );
+          }
+
+          return {
+            ...notif._doc,
+            sender: {
+              _id: companyId,
+              name: companyName,
+              profileImage: companyImage,
+            },
+          };
+        } else {
+          let senderObj = notif.senderId;
+          let senderId;
+          let senderName;
+          if (
+            senderObj &&
+            typeof senderObj === "object" &&
+            senderObj._id &&
+            senderObj.name
+          ) {
+            senderId = senderObj._id;
+            senderName = senderObj.name;
+          } else {
+            const user = await User.findById(senderObj).select("name");
+            senderId = senderObj;
+            senderName = user ? user.name : "Unknown";
+          }
+          const onboarding = await Onboarding.findOne({
+            userId: senderId,
+          }).select("profileImage");
+
+          return {
+            ...notif._doc,
+            sender: {
+              _id: senderId,
+              name: senderName,
+              profileImage: onboarding?.profileImage || null,
+            },
+          };
+        }
       })
     );
 
@@ -38,25 +88,25 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Get unread notification count
-router.get('/unread-count', async (req, res) => {
+// Get the unread notification count by User ID's
+router.get("/unread-count", async (req, res) => {
   try {
     const userId = req.query.userId;
     if (!userId) return res.status(400).json({ error: "User ID required" });
 
-    const count = await Notification.countDocuments({ 
-      userId, 
-      read: false 
+    const count = await Notification.countDocuments({
+      userId,
+      read: false,
     });
-    
+
     res.json({ count });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-
-router.patch('/mark-read/:id', async (req, res) => {
+// To mark particular message as read by their id
+router.patch("/mark-read/:id", async (req, res) => {
   try {
     const notification = await Notification.findByIdAndUpdate(
       req.params.id,
@@ -69,8 +119,8 @@ router.patch('/mark-read/:id', async (req, res) => {
   }
 });
 
-// Mark a single notification as unread   
-router.patch('/mark-unread/:id', async (req, res) => {
+// To mark particular message as un-read by their id
+router.patch("/mark-unread/:id", async (req, res) => {
   try {
     const notification = await Notification.findByIdAndUpdate(
       req.params.id,
@@ -83,8 +133,8 @@ router.patch('/mark-unread/:id', async (req, res) => {
   }
 });
 
-// Mark all notifications as read for a user
-router.patch('/mark-all-read', async (req, res) => {
+// To make all the notification of particular user as read by User ID
+router.patch("/mark-all-read", async (req, res) => {
   try {
     const { userId } = req.body;
     await Notification.updateMany({ userId, read: false }, { read: true });

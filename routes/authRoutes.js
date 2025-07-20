@@ -20,6 +20,11 @@ router.post('/verify-reset-otp', authController.verifyResetOTP);
 router.post('/reset-password', authController.resetPassword);
 router.get("/all",verifyToken,authController.getAllUsers);
 router.get('/:id', authController.getUserById);
+router.post('/send-change-password-otp', authController.sendChangePasswordOTP);
+router.post('/verify-change-password-otp', authController.verifyChangePasswordOTP);
+router.post('/change-password', authController.changePasswordWithCurrent);
+router.post("/check-current-password", authController.checkCurrentPassword);
+
 
 router.get("/:id/posts", verifyToken, async (req, res) => {
   try {

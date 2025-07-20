@@ -2,10 +2,12 @@ const mongoose = require("mongoose");
 const Application = require("../models/JobApplication");
 const User = require("../models/User");
 const Job = require("../models/job");
-const Onboarding = require("../models/onboarding");
+const Onboarding = require("../models/Onboarding");
 const sendStatusEmail = require("../utils/sendStatusMail");
 const path = require("path");
+const Notification = require("../models/Notification");
 
+// Post Job application only by employee user
 exports.createApplication = async (req, res) => {
   try {
     const {
@@ -21,9 +23,9 @@ exports.createApplication = async (req, res) => {
 
     let resume;
     if (req.file) {
-      resume = req.file.filename; // New upload
+      resume = req.file.filename;
     } else if (req.body.resumePath) {
-      resume = req.body.resumePath; // Existing resume
+      resume = req.body.resumePath;
     } else {
       return res.status(400).json({ message: "Resume is required." });
     }
@@ -72,16 +74,17 @@ exports.createApplication = async (req, res) => {
   }
 };
 
+// To get all the applications
 exports.getAllApplications = async (req, res) => {
   try {
     const applications = await Application.find()
-  .populate("userId")
-  .populate({
-    path: "jobId",
-    populate: {
-      path: "companyId",
-    },
-  })
+      .populate("userId")
+      .populate({
+        path: "jobId",
+        populate: {
+          path: "companyId",
+        },
+      });
     const applicationsWithDownloadLink = applications.map((app) => {
       const resumeDownloadLink = `http://localhost:3000/download/${app._id}`;
       return {
@@ -96,6 +99,7 @@ exports.getAllApplications = async (req, res) => {
   }
 };
 
+// Get details of each application by ID
 exports.getApplicationById = async (req, res) => {
   try {
     const app = await Application.findById(req.params.id).populate(
@@ -108,12 +112,12 @@ exports.getApplicationById = async (req, res) => {
   }
 };
 
+// Delete application and associated details
 exports.deleteApplication = async (req, res) => {
   try {
     const app = await Application.findByIdAndDelete(req.params.id);
     if (!app) return res.status(404).json({ message: "Application not found" });
 
-    // Remove jobId from user's appliedJobs
     await User.findByIdAndUpdate(app.userId, {
       $pull: { appliedJobs: app.jobId },
     });
@@ -124,40 +128,26 @@ exports.deleteApplication = async (req, res) => {
   }
 };
 
-exports.
-
-
-getApplicationsForJob = async (req, res) => {
+// Get all applications of particular job with jobID 
+exports.getApplicationsForJob = async (req, res) => {
   try {
-    
     const jobId = req.params.jobId;
-    // console.log("🔍 jobId from params:", jobId);
 
-    // Fetch job and populate company info
     const job = await Job.findById(jobId).populate("companyId");
     if (!job) {
       return res.status(404).json({ message: "Job not found" });
     }
 
-    // console.log("📄 Job found:", job);
-    // console.log("🏢 Populated companyId:", job.companyId);
-
-    // Ensure company exists and has a createdBy field
     if (!job.companyId || !job.companyId.createdBy) {
       return res.status(403).json({ message: "Company or owner info missing" });
     }
 
-    // console.log("🧑‍💼 company.createdBy:", job.companyId.createdBy);
-    // console.log("🪪 req.user._id:", req.user._id);
-
-    // Check if the logged-in user is the creator of the company
     if (job.companyId.createdBy.toString() !== req.user._id.toString()) {
       return res
         .status(403)
         .json({ message: "Not authorized to view applications for this job" });
     }
 
-    // Fetch applications for this job
     const applications = await Application.find({ jobId }).populate("userId");
     res.status(200).json(applications);
   } catch (err) {
@@ -166,6 +156,7 @@ getApplicationsForJob = async (req, res) => {
   }
 };
 
+// Fetch the applied jobs of particular user by ID 
 exports.getAppliedJobs = async (req, res) => {
   const { userId } = req.params;
 
@@ -181,7 +172,8 @@ exports.getAppliedJobs = async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 };
-// Add this new route to your application controller
+
+// To download resume of job applications
 exports.downloadResume = async (req, res) => {
   try {
     const application = await Application.findById(req.params.id);
@@ -207,6 +199,8 @@ exports.downloadResume = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// Update the status of job applications by their ID from pending to (rejected, selected, not selected, in progress)
 exports.updateApplicationStatus = async (req, res) => {
   try {
     const { status, notes } = req.body;
@@ -225,7 +219,6 @@ exports.updateApplicationStatus = async (req, res) => {
 
     application.status = status;
 
-    // Only update notes if provided
     if (typeof notes === "string") {
       application.notes = notes;
     }
@@ -236,18 +229,29 @@ exports.updateApplicationStatus = async (req, res) => {
       application.rejectedAt = null;
     }
 
-    // Fetch the job title using the jobId
     const job = await Job.findById(application.jobId);
     if (!job) {
       return res.status(404).json({ message: "Job not found" });
     }
 
-    const jobTitle = job.position; // Assuming 'title' is the field for job title
+    const jobTitle = job.position;
 
-    // Save the updated application
     await application.save();
 
-    // Send email if the status is selected, rejected, or not selected
+    try {
+      if (
+        ["selected", "rejected", "not selected", "in progress"].includes(status)
+      ) {
+        await Notification.create({
+          userId: application.userId,
+          senderId: req.user?._id || null,
+          message: `Your application for "${jobTitle}" has been ${status}.`,
+          type: "application_status",
+        });
+      }
+    } catch (notifErr) {
+      console.error("Notification creation failed:", notifErr.message);
+    }
 
     try {
       if (["selected", "rejected", "not selected"].includes(status)) {
@@ -272,6 +276,7 @@ exports.updateApplicationStatus = async (req, res) => {
   }
 };
 
+// Update the status of job applications in bulk by list of application ID's from pending to (rejected, selected, not selected, in progress)
 exports.bulkUpdateApplicationStatus = async (req, res) => {
   try {
     const { ids, status, notes } = req.body;
@@ -299,7 +304,6 @@ exports.bulkUpdateApplicationStatus = async (req, res) => {
       return res.status(400).json({ message: "Invalid status" });
     }
 
-    // Prepare update fields
     const updateData = {
       status,
       rejectedAt: status === "rejected" ? new Date() : null,
@@ -308,7 +312,6 @@ exports.bulkUpdateApplicationStatus = async (req, res) => {
       updateData.notes = notes;
     }
 
-    // Fetch applications before updating
     const applications = await Application.find({ _id: { $in: ids } });
 
     if (applications.length === 0) {
@@ -317,7 +320,6 @@ exports.bulkUpdateApplicationStatus = async (req, res) => {
         .json({ message: "No applications found to update" });
     }
 
-    // Fetch job titles for applications
     const jobTitles = await Job.find({
       _id: { $in: applications.map((app) => app.jobId) },
     })
@@ -329,13 +331,32 @@ exports.bulkUpdateApplicationStatus = async (req, res) => {
         }, {})
       );
 
-    // Perform the update
     await Application.updateMany({ _id: { $in: ids } }, { $set: updateData });
 
-    // Send email to each matched applicant if applicable
+    try {
+      const notificationPromises = applications.map((app) => {
+        if (
+          ["selected", "rejected", "not selected", "in progress"].includes(
+            status
+          )
+        ) {
+          const jobTitle = jobTitles[app.jobId];
+          return Notification.create({
+            userId: app.userId,
+            senderId: req.user?._id || null,
+            message: `Your application for "${jobTitle}" has been ${status}.`,
+            type: "application_status",
+          });
+        }
+        return Promise.resolve();
+      });
+      await Promise.all(notificationPromises);
+    } catch (notifErr) {
+      console.error("Bulk notification creation failed:", notifErr.message);
+    }
+
     const emailPromises = applications.map(async (app) => {
       try {
-        // Fetch job title from the cached job titles
         const jobTitle = jobTitles[app.jobId];
         if (
           jobTitle &&
@@ -348,7 +369,6 @@ exports.bulkUpdateApplicationStatus = async (req, res) => {
       }
     });
 
-    // Wait for all email promises to resolve
     await Promise.all(emailPromises);
 
     res.status(200).json({

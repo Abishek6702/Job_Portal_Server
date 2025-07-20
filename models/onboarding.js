@@ -6,8 +6,8 @@ const educationSchema = new mongoose.Schema(
     institution: String,
     university: String,
     branch: String,
-    yearFrom: Number,
-    yearTo: Number,
+    yearFrom: Date,
+    yearTo: Date,
     marks: String,
   },
   { _id: false }
@@ -16,8 +16,8 @@ const educationSchema = new mongoose.Schema(
 const experienceSchema = new mongoose.Schema(
   {
     company: String,
-    yearFrom: Number,
-    yearTo: Number,
+    yearFrom: Date,
+    yearTo: Date,
     title: String,
     location: String,
     description: String,
@@ -49,6 +49,5 @@ const onboardingSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// ✅ This prevents OverwriteModelError
 module.exports =
   mongoose.models.Onboarding || mongoose.model("Onboarding", onboardingSchema);

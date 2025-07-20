@@ -2,10 +2,13 @@ const mongoose = require("mongoose");
 const Job = require("../models/job");
 const Company = require("../models/company");
 
+// Post job only by employee
 exports.createJob = async (req, res) => {
   try {
-    if (req.user.role !== 'employer') {
-      return res.status(403).json({ message: "Only employers can create jobs" });
+    if (req.user.role !== "employer") {
+      return res
+        .status(403)
+        .json({ message: "Only employers can create jobs" });
     }
 
     const parseJSON = (data, fallback = []) => {
@@ -16,7 +19,6 @@ exports.createJob = async (req, res) => {
       }
     };
 
-    // Destructure and parse fields
     let {
       companyId,
       position,
@@ -27,14 +29,14 @@ exports.createJob = async (req, res) => {
       requirements,
       salaryRange,
       additionalBenefits,
-      additionalInfo, // New field
-      deadlineToApply
+      additionalInfo,
+      deadlineToApply,
     } = req.body;
 
     jobDescription = parseJSON(jobDescription);
     requirements = parseJSON(requirements);
     additionalBenefits = parseJSON(additionalBenefits);
-    additionalInfo = parseJSON(additionalInfo); // Parse new field
+    additionalInfo = parseJSON(additionalInfo);
 
     const job = await Job.create({
       companyId: new mongoose.Types.ObjectId(companyId),
@@ -46,12 +48,11 @@ exports.createJob = async (req, res) => {
       requirements,
       salaryRange,
       additionalBenefits,
-      additionalInfo, // Include new field
+      additionalInfo,
       deadlineToApply,
-      postedAt: new Date()
+      postedAt: new Date(),
     });
 
-    // Update company's jobs array
     await Company.findByIdAndUpdate(
       companyId,
       { $push: { jobs: job._id } },
@@ -65,17 +66,17 @@ exports.createJob = async (req, res) => {
   }
 };
 
-
+// Get all the jobs
 exports.getAllJobs = async (req, res) => {
   try {
-    const jobs = await Job.find().populate('companyId');
-    // console.log("Populated Jobs:", JSON.stringify(jobs, null, 2));
+    const jobs = await Job.find().populate("companyId");
     res.status(200).json(jobs);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
+// Get job detils by ID
 exports.getJobById = async (req, res) => {
   try {
     const job = await Job.findById(req.params.id).populate("companyId");
@@ -86,6 +87,7 @@ exports.getJobById = async (req, res) => {
   }
 };
 
+// Update particular job detils by their ID only by particular employer user and admin
 exports.updateJob = async (req, res) => {
   try {
     const { id } = req.params;
@@ -97,11 +99,13 @@ exports.updateJob = async (req, res) => {
     const job = await Job.findById(id);
     if (!job) return res.status(404).json({ error: "Job not found" });
 
-    // Authorization through company association
     const company = await Company.findById(job.companyId);
     if (!company) return res.status(404).json({ error: "Company not found" });
 
-    if (req.user.role !== 'admin' && !company.createdBy.equals(req.user._id)) {
+    if (
+      req.user.role !== "admin" &&
+      company.createdBy.toString() !== req.user._id.toString()
+    ) {
       return res.status(403).json({ error: "Access denied" });
     }
 
@@ -113,7 +117,6 @@ exports.updateJob = async (req, res) => {
       }
     };
 
-    // Destructure and parse fields
     let {
       position,
       location,
@@ -123,14 +126,14 @@ exports.updateJob = async (req, res) => {
       requirements,
       salaryRange,
       additionalBenefits,
-      additionalInfo, // New field
-      deadlineToApply
+      additionalInfo,
+      deadlineToApply,
     } = req.body;
 
     jobDescription = parseJSON(jobDescription);
     requirements = parseJSON(requirements);
     additionalBenefits = parseJSON(additionalBenefits);
-    additionalInfo = parseJSON(additionalInfo); // Parse new field
+    additionalInfo = parseJSON(additionalInfo);
 
     const updateData = {
       position,
@@ -141,12 +144,11 @@ exports.updateJob = async (req, res) => {
       requirements,
       salaryRange,
       additionalBenefits,
-      additionalInfo, // Include new field
-      deadlineToApply
+      additionalInfo,
+      deadlineToApply,
     };
 
-    // Remove undefined/null fields
-    Object.keys(updateData).forEach(key => {
+    Object.keys(updateData).forEach((key) => {
       if (updateData[key] === undefined || updateData[key] === null) {
         delete updateData[key];
       }
@@ -154,7 +156,7 @@ exports.updateJob = async (req, res) => {
 
     const updatedJob = await Job.findByIdAndUpdate(id, updateData, {
       new: true,
-      runValidators: true
+      runValidators: true,
     });
 
     res.status(200).json(updatedJob);
@@ -164,37 +166,34 @@ exports.updateJob = async (req, res) => {
   }
 };
 
-
-
+// Delete the job by their ID only by particular employer user and admin
 exports.deleteJob = async (req, res) => {
   try {
     const job = await Job.findById(req.params.id);
     if (!job) return res.status(404).json({ message: "Job not found" });
 
-    // Fetch the related company
     const company = await Company.findById(job.companyId);
     if (!company) {
       return res.status(404).json({ message: "Associated company not found" });
     }
 
-    // Check permission
     if (
-      req.user.role !== 'admin' &&
+      req.user.role !== "admin" &&
       company.createdBy?.toString() !== req.user._id.toString()
     ) {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    // Delete the job
     await Job.findByIdAndDelete(req.params.id);
 
-    // Remove job ID from company.jobs array
     company.jobs = company.jobs.filter(
       (jobId) => jobId.toString() !== req.params.id
     );
     await company.save();
 
-    res.status(200).json({ message: "Job deleted and reference removed from company" });
+    res
+      .status(200)
+      .json({ message: "Job deleted and reference removed from company" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

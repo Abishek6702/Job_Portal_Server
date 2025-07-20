@@ -1,12 +1,17 @@
-const sendEmail = require('./sendEmail');
+const sendEmail = require("./sendEmail");
 
-const sendStatusEmail = async (to, status, name = "Applicant", jobTitle = "the position") => {
-  let subject = '';
-  let html = '';
-  let text = ''; // Default empty string for plain text version of the email
+const sendStatusEmail = async (
+  to,
+  status,
+  name = "Applicant",
+  jobTitle = "the position"
+) => {
+  let subject = "";
+  let html = "";
+  let text = "";
 
   switch (status) {
-    case 'selected':
+    case "selected":
       subject = `🎉 Congratulations! You've been selected for ${jobTitle}`;
       html = `
         <h2>Hello ${name},</h2>
@@ -18,7 +23,7 @@ const sendStatusEmail = async (to, status, name = "Applicant", jobTitle = "the p
       text = `Hello ${name},\n\nWe are pleased to inform you that you've been selected for the position of ${jobTitle}.\n\nWe'll follow up shortly with the next steps.\n\nThank you for your interest in joining us.\n\nBest regards,\nYour Company Team`;
       break;
 
-    case 'rejected':
+    case "rejected":
       subject = `Application Update: Rejected for ${jobTitle}`;
       html = `
         <h2>Dear ${name},</h2>
@@ -30,7 +35,7 @@ const sendStatusEmail = async (to, status, name = "Applicant", jobTitle = "the p
       text = `Dear ${name},\n\nThank you for applying for the ${jobTitle} role.\n\nAfter review, we regret to inform you that your application has been rejected.\n\nWe encourage you to apply for future openings.\n\nSincerely,\nYour Company Team`;
       break;
 
-    case 'not selected':
+    case "not selected":
       subject = `Application Status: Not Selected for ${jobTitle}`;
       html = `
         <h2>Hello ${name},</h2>
@@ -43,13 +48,12 @@ const sendStatusEmail = async (to, status, name = "Applicant", jobTitle = "the p
       break;
 
     default:
-      return; // No email sent for other statuses
+      return;
   }
 
-  // Ensure email is being sent correctly
   try {
-    await sendEmail(to, subject, text, html); // Send both text and HTML versions
-    console.log("Email sent to:", to); // Log to verify email is being passed correctly
+    await sendEmail(to, subject, text, html);
+    console.log("Email sent to:", to);
   } catch (emailErr) {
     console.error("Error sending email:", emailErr.message);
     throw emailErr;

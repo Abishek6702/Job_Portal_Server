@@ -9,7 +9,7 @@ router.post('/request', async (req, res) => {
   const io = req.io;
 
   try {
-    // Update sender and receiver
+    // Update sender and receiver fr notification
     await User.findByIdAndUpdate(senderId, { 
       $addToSet: { sentRequests: receiverId } 
     });
@@ -146,8 +146,8 @@ router.get('/:userId/connections', async (req, res) => {
     const user = await User.findById(userId)
       .populate({
         path: 'connections',
-        select: '-password -__v', // Exclude sensitive fields
-        options: { lean: true }   // Optimize performance
+        select: '-password -__v', 
+        options: { lean: true }   
       });
 
     if (!user) {
