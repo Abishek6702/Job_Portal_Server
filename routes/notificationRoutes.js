@@ -4,7 +4,7 @@ const Notification = require("../models/Notification");
 const User = require("../models/User");
 const Onboarding = require("../models/onboarding");
 const Job = require("../models/job");
-const Company = require("../models/Company");
+const Company = require("../models/company");
 
 // To get all notifications
 router.get("/", async (req, res) => {
