@@ -23,6 +23,11 @@ const resumeRoutes = require("./routes/resumeRoutes");
 const templateRoutes = require("./routes/templateRoutes");
 const app = express();
 const server = http.createServer(app);
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://job-portal-client-eosin-chi.vercel.app",
+  "https://job-portal-client-git-main-abisheks-projects-b2a0a1da.vercel.app"
+];
 // Frontend ports allowed
 const io = socketIo(server, {
   cors: {
@@ -34,11 +39,7 @@ const io = socketIo(server, {
 
 
 // Frontend ports allowed
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://job-portal-client-eosin-chi.vercel.app",
-  "https://job-portal-client-git-main-abisheks-projects-b2a0a1da.vercel.app"
-];
+
 
 app.use(cors({
   origin: function (origin, callback) {
