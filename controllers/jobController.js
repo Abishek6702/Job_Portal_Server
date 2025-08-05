@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const Job = require("../models/job");
 const Company = require("../models/company");
-
+const Application = require("../models/JobApplication"); 
 // Post job only by employee
 exports.createJob = async (req, res) => {
   try {
@@ -69,8 +69,31 @@ exports.createJob = async (req, res) => {
 // Get all the jobs
 exports.getAllJobs = async (req, res) => {
   try {
-    const jobs = await Job.find().populate("companyId");
-    res.status(200).json(jobs);
+    const jobs = await Job.find().populate("companyId").lean();
+
+    // Aggregate count of applications grouped by jobId
+    const counts = await Application.aggregate([
+      {
+        $group: {
+          _id: "$jobId",
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Convert counts array to a Map for easy lookup
+    const countMap = counts.reduce((acc, curr) => {
+      acc[curr._id.toString()] = curr.count;
+      return acc;
+    }, {});
+
+    // Add totalApplications to each job
+    const jobsWithCounts = jobs.map(job => ({
+      ...job,
+      totalApplications: countMap[job._id.toString()] || 0
+    }));
+
+    res.status(200).json(jobsWithCounts);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -79,13 +102,21 @@ exports.getAllJobs = async (req, res) => {
 // Get job detils by ID
 exports.getJobById = async (req, res) => {
   try {
-    const job = await Job.findById(req.params.id).populate("companyId");
+    const job = await Job.findById(req.params.id).populate("companyId").lean();
     if (!job) return res.status(404).json({ message: "Job not found" });
-    res.status(200).json(job);
+
+    // Count applications for this job
+    const totalApplications = await Application.countDocuments({ jobId: job._id });
+
+    res.status(200).json({
+      ...job,
+      totalApplications
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 // Update particular job detils by their ID only by particular employer user and admin
 exports.updateJob = async (req, res) => {

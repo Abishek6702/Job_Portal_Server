@@ -4,9 +4,11 @@ const User = require("../models/User");
 const Job = require("../models/job");
 const Onboarding = require("../models/onboarding");
 const sendStatusEmail = require("../utils/sendStatusMail");
+const fs = require("fs");
 const path = require("path");
 const Notification = require("../models/Notification");
-
+const sendApplicationDeletedEmail = require("../utils/sendApplicationDeletedEmail");
+const sendApplicationCreatedEmail = require("../utils/sendApplicationCreatedEmail");
 // Post Job application only by employee user
 exports.createApplication = async (req, res) => {
   try {
@@ -66,6 +68,11 @@ exports.createApplication = async (req, res) => {
     await User.findByIdAndUpdate(req.user._id, {
       $addToSet: { appliedJobs: jobId },
     });
+    await sendApplicationCreatedEmail(
+      email, // applicant's email
+      name,
+      jobId // or jobTitle if you want to pass job details (will fetch job info)
+    );
 
     res.status(201).json(savedApp);
   } catch (err) {
@@ -121,6 +128,7 @@ exports.deleteApplication = async (req, res) => {
     await User.findByIdAndUpdate(app.userId, {
       $pull: { appliedJobs: app.jobId },
     });
+    await sendApplicationDeletedEmail(app.email, app.name, app.jobId);
 
     res.status(200).json({ message: "Application deleted successfully" });
   } catch (err) {
@@ -128,7 +136,7 @@ exports.deleteApplication = async (req, res) => {
   }
 };
 
-// Get all applications of particular job with jobID 
+// Get all applications of particular job with jobID
 exports.getApplicationsForJob = async (req, res) => {
   try {
     const jobId = req.params.jobId;
@@ -156,7 +164,7 @@ exports.getApplicationsForJob = async (req, res) => {
   }
 };
 
-// Fetch the applied jobs of particular user by ID 
+// Fetch the applied jobs of particular user by ID
 exports.getAppliedJobs = async (req, res) => {
   const { userId } = req.params;
 
@@ -182,18 +190,35 @@ exports.downloadResume = async (req, res) => {
       return res.status(404).json({ message: "Resume not found" });
     }
 
-    const resumePath = path.join(
-      __dirname,
-      "../uploads/resumes",
-      application.resume
-    );
+    const resumeRaw = application.resume;
+    // Always just the file name, cleans any directory info
+    const resumeFileName = path.basename(resumeRaw);
+
+    // Three possible places to check (in order)
+    const possiblePaths = [
+      path.join(__dirname, "../uploads", resumeFileName),
+      path.join(__dirname, "../uploads/resumes", resumeFileName),
+      path.join(__dirname, "../uploads/resumes/uploads", resumeFileName),
+    ];
+
+    // Find the first path that exists
+    let foundPath = null;
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        foundPath = p;
+        break;
+      }
+    }
+
+    if (!foundPath) {
+      return res.status(404).json({ message: "Resume file not found" });
+    }
 
     res.setHeader(
       "Content-Disposition",
       `attachment; filename="resume-${application._id}.pdf"`
     );
-
-    res.sendFile(resumePath);
+    res.sendFile(foundPath);
   } catch (err) {
     console.error("Download error:", err);
     res.status(500).json({ error: err.message });
