@@ -26,6 +26,7 @@ const server = http.createServer(app);
 const allowedOrigins = [
   "http://localhost:5173",
   "https://job-portal-client-eosin-chi.vercel.app",
+  "https://job-portal-client-shcl.vercel.app",
   "https://job-portal-client-git-main-abisheks-projects-b2a0a1da.vercel.app"
 ];
 // Frontend ports allowed
